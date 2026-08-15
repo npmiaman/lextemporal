@@ -1,0 +1,8 @@
+# Deliberately narrower than .gitignore: data/lex.db MUST upload (seed cache DB).
+node_modules
+.next
+.env
+.env.local
+.env.*.local
+data/lex.db-shm
+data/lex.db-wal
