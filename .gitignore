@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local cache/audit database
 data/lex.db*
+
+# tesseract language model, downloaded on first OCR run
+eng.traineddata

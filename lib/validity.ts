@@ -52,7 +52,11 @@ const DISTINCTIVE_SECTIONS: Record<string, string> = {
   "29A": "Arbitration and Conciliation Act 1996",
 };
 
-const SECTION_LIST = /\b(?:Sections?|Sec\.?|S\.)\s*((?:\d+\s*-?\s*[A-Z]{0,2})(?:\s*\([^)]{1,12}\))?(?:\s*(?:,|and|&|\/|read with|r\/w)\s*(?:Sections?\s*|Sec\.?\s*|S\.\s*)?\d+\s*-?\s*[A-Z]{0,2}(?:\s*\([^)]{1,12}\))?)*)/gi;
+// NOTE: this pattern must NOT carry the `i` flag. A section suffix is genuinely
+// uppercase ("65B", "12A"), and under /i the `[A-Z]{0,2}` class also matches
+// lowercase — so "Sections 10 and 14" parsed as "10 an" and silently dropped
+// S.14, a mapped provision. Case tolerance belongs in the keyword classes only.
+const SECTION_LIST = /\b(?:[Ss]ections?|[Ss]ec\.?|[Ss]\.)\s*((?:\d+\s*-?\s*[A-Z]{0,2})(?:\s*\([^)]{1,12}\))?(?:\s*(?:,|[Aa]nd|&|\/|[Rr]ead with|[Rr]\/[Ww])\s*(?:[Ss]ections?\s*|[Ss]ec\.?\s*|[Ss]\.\s*)?\d+\s*-?\s*[A-Z]{0,2}(?:\s*\([^)]{1,12}\))?)*)/g;
 
 function normalise(s: string): string {
   return s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
@@ -116,7 +120,7 @@ export function extractProvisions(text: string): { act: string; section: string 
   }
 
   // Pattern 3: distinctive standalone sections ("Section 65B", "S. 12A") without act nearby.
-  for (const m of text.matchAll(new RegExp(SECTION_LIST.source, "gi"))) {
+  for (const m of text.matchAll(new RegExp(SECTION_LIST.source, "g"))) {
     for (const s of sectionTokens(m[1])) {
       const owner = DISTINCTIVE_SECTIONS[s.toUpperCase()];
       if (owner) add(owner, s);
@@ -126,7 +130,12 @@ export function extractProvisions(text: string): { act: string; section: string 
   return [...found.values()];
 }
 
-function governingDate(m: StatuteMapping, dates: MatterDates): { date: string; rule: string } {
+/** Which matter date the amendment is tested against, per the mapping's rule.
+ *  Exported so retrieval can compute the same window this engine flags on. */
+export function governingDate(
+  m: StatuteMapping,
+  dates: MatterDates
+): { date: string; rule: string } {
   if (m.applies_when === "trial_on_or_after") {
     return { date: dates.trial, rule: "trial_on_or_after" };
   }
@@ -134,7 +143,15 @@ function governingDate(m: StatuteMapping, dates: MatterDates): { date: string; r
   return { date: d, rule: "cause_or_suit_after_commencement" };
 }
 
-function matchesMapping(act: string, section: string, m: StatuteMapping, side: "old" | "new"): boolean {
+/**
+ * Does a judgment's (act, section) reliance match one side of a mapping?
+ *
+ * Exported deliberately. Graph retrieval must decide "does this judgment rely on
+ * the old side of a mapping that governs this matter" using the SAME act-name
+ * normalisation this engine uses — a second copy of that logic elsewhere is how
+ * retrieval and flagging silently disagree about what a judgment cites.
+ */
+export function matchesMapping(act: string, section: string, m: StatuteMapping, side: "old" | "new"): boolean {
   const mAct = side === "old" ? m.act_old : m.act_new;
   const mProv = side === "old" ? m.provision_old : m.provision_new;
   const mSection = provisionSection(mProv);

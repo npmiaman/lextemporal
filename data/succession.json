@@ -1,0 +1,60 @@
+{
+  "_readme": [
+    "Act-level repeal-and-replace. Footnote mining (scripts/ingest/statutes.py) can",
+    "only see changes WITHIN an Act, so cross-Act succession is structurally invisible",
+    "to it — every one of the validation misses was this case. This file supplies it.",
+    "",
+    "Scope note, deliberately narrow: act-level succession is recorded here because it",
+    "is unambiguous and public. Section-level concordance (IPC s.302 -> BNS s.103 and",
+    "so on) is NOT invented here. An incorrect section mapping in a litigation tool is",
+    "worse than an absent one, because it produces a confident, wrong citation. Fill",
+    "`sections` only from an authoritative concordance, and set verified=true per row",
+    "as a lawyer signs it off.",
+    "",
+    "Act-level entries alone are already useful: they let the engine flag any pre-",
+    "commencement authority resting on a repealed Act as amber ('decided under the",
+    "repealed X; Y governs this matter'), which is correct without knowing the exact",
+    "successor section."
+  ],
+  "successions": [
+    {
+      "id": "S1",
+      "act_old": "Indian Penal Code 1860",
+      "act_new": "Bharatiya Nyaya Sanhita 2023",
+      "aliases_old": ["indian penal code", "i.p.c.", "ipc", "penal code"],
+      "aliases_new": ["bharatiya nyaya sanhita", "nyaya sanhita", "bns"],
+      "commencement": "2024-07-01",
+      "change_type": "succession",
+      "applies_when": "cause_or_suit_after_commencement",
+      "note": "IPC repealed and replaced. Offences committed before commencement continue under the IPC; the repeal does not apply retrospectively to conduct already complete.",
+      "verified": true,
+      "sections": []
+    },
+    {
+      "id": "S2",
+      "act_old": "Code of Criminal Procedure 1973",
+      "act_new": "Bharatiya Nagarik Suraksha Sanhita 2023",
+      "aliases_old": ["code of criminal procedure", "criminal procedure code", "cr.p.c.", "crpc"],
+      "aliases_new": ["bharatiya nagarik suraksha sanhita", "nagarik suraksha sanhita", "bnss"],
+      "commencement": "2024-07-01",
+      "change_type": "succession",
+      "applies_when": "trial_on_or_after",
+      "note": "CrPC repealed and replaced. Procedural succession: pending proceedings are governed by savings provisions, so a procedural authority predating commencement needs checking against the saving clause rather than assuming it survives.",
+      "verified": true,
+      "sections": []
+    },
+    {
+      "id": "S3",
+      "act_old": "Indian Evidence Act 1872",
+      "act_new": "Bharatiya Sakshya Adhiniyam 2023",
+      "aliases_old": ["indian evidence act", "evidence act"],
+      "aliases_new": ["bharatiya sakshya adhiniyam", "sakshya adhiniyam", "bsa"],
+      "commencement": "2024-07-01",
+      "change_type": "succession",
+      "applies_when": "trial_on_or_after",
+      "note": "Evidence Act repealed and replaced. Evidence led on or after commencement is governed by the BSA, which is why applies_when is trial-based rather than cause-based. Section-level rows for this Act already exist, hand-verified, in data/mappings.json (M14-M17).",
+      "verified": true,
+      "sections": []
+    }
+  ]
+}

@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
+import { Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -14,21 +8,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LexTemporal — Temporal-validity legal research",
-  description:
-    "Prototype legal-research engine that validates authorities against the dispute timeline.",
+  title: "LexTemporal",
+  description: "Legal research whose authority is checked against your matter's timeline.",
 };
+
+// Dark is the default theme. The server already renders `class="dark"`, and
+// this runs before first paint so a saved light/system preference swaps the
+// class without a flash of the wrong theme.
+const applyTheme = `try{var p=localStorage.getItem('lextemporal-appearance')||'dark';var d=p!=='light'&&(p!=='system'||matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistMono.variable} dark h-full antialiased`}
+      style={{ colorScheme: "dark" }}
+      suppressHydrationWarning
     >
-      <body className="min-h-full">
-        {children}
-        <Toaster richColors position="bottom-right" />
-      </body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: applyTheme }} />
+      </head>
+      <body className="min-h-full flex flex-col bg-background text-foreground">{children}</body>
     </html>
   );
 }

@@ -4,10 +4,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html {
+  font-synthesis-weight: none;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-app-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -39,6 +43,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-bubble: var(--bubble);
+  --color-bubble-foreground: var(--bubble-foreground);
+  --color-brand: var(--brand);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,73 +55,114 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* The palette is warm stone, not neutral grey: every surface keeps R > G > B
+   so the UI reads like paper-under-lamplight rather than slate. Surfaces climb
+   a four-step ladder - canvas (deepest) < sidebar < chrome < interactive -
+   and the same ladder is mirrored in light mode. */
 :root {
-  --background: oklch(0.968 0.007 247.896);
-  --foreground: oklch(0.208 0.042 265.755);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.755);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.755);
-  --primary: #930b0b;
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: #930b0b;
+  /* Mirrors the native stack and 14px chat base exposed by the Codex desktop UI. */
+  --font-app-sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --chat-font-size: 0.875rem;
+  --background: #fdfcfb;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+  --primary: #292524;
+  --primary-foreground: #fafaf9;
+  --secondary: #f2efed;
+  --secondary-foreground: #292524;
+  --muted: #f5f3f1;
+  --muted-foreground: #78716c;
+  --accent: #eeebe8;
+  --accent-foreground: #1c1917;
+  --destructive: #dc2626;
+  --border: #e7e4e1;
+  --input: #ddd9d5;
+  --ring: #a8a29e;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.5rem;
+  --sidebar: #f7f5f3;
+  --sidebar-foreground: #292524;
+  --sidebar-primary: #292524;
+  --sidebar-primary-foreground: #fafaf9;
+  --sidebar-accent: #e9e5e1;
+  --sidebar-accent-foreground: #1c1917;
+  --sidebar-border: #e7e4e1;
+  --sidebar-ring: #a8a29e;
+  /* Own message bubble - carries a touch more warmth than the chrome. */
+  --bubble: #f3eeea;
+  --bubble-foreground: #1c1917;
+  /* Warm highlight used for active tabs and selection rails. */
+  --brand: #8a6a52;
 }
 
+/* Dark is the shipped default (see layout.tsx); light stays available from
+   Settings > Appearance. The canvas is the *deepest* surface and chrome rises
+   above it: background #141110 < sidebar #1b1917 < chrome #201e1c <
+   interactive #272523. Values are hand-picked rather than generated, so they
+   stay hex - the warmth is the point and it should be legible at a glance. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #141110;
+  --foreground: #eae8e6;
+  --card: #1b1917;
+  --card-foreground: #eae8e6;
+  --popover: #201e1c;
+  --popover-foreground: #eae8e6;
+  --primary: #eae8e6;
+  --primary-foreground: #1b1917;
+  --secondary: #272523;
+  --secondary-foreground: #eae8e6;
+  --muted: #201e1c;
+  --muted-foreground: #a4a09d;
+  --accent: #272523;
+  --accent-foreground: #f2f0ee;
+  --destructive: #f87171;
+  --border: #2b2826;
+  --input: #373533;
+  --ring: #57534e;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #1b1917;
+  --sidebar-foreground: #d6d3d1;
+  --sidebar-primary: #eae8e6;
+  --sidebar-primary-foreground: #1b1917;
+  --sidebar-accent: #272523;
+  --sidebar-accent-foreground: #f2f0ee;
+  --sidebar-border: #262322;
+  --sidebar-ring: #57534e;
+  --bubble: #281e1d;
+  --bubble-foreground: #f2ece8;
+  --brand: #d8c2b3;
+}
+
+/* Agent-thinking glyph: a brightness wave crossing a ring of bars. Each bar
+   carries the same animation on a staggered delay, so the sweep travels through
+   the circle instead of every bar pulsing together. */
+@keyframes agent-thinking-band {
+  0%, 100% { opacity: 0.14; transform: scaleX(0.82); }
+  45% { opacity: 1; transform: scaleX(1); }
+}
+
+.agent-thinking-band {
+  opacity: 0.14;
+  /* SVG transforms resolve against the viewBox unless the box is the shape
+     itself, which would slide each bar instead of scaling it in place. */
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: agent-thinking-band 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-thinking-band { animation-duration: 4s; }
 }
 
 @layer base {
@@ -123,35 +171,19 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-size: var(--chat-font-size);
+    letter-spacing: -0.006em;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   html {
     @apply font-sans;
+    color-scheme: light;
   }
-}
-
-/* Fresh audit-log rows flash briefly so new entries are visible on camera */
-@keyframes audit-flash {
-  from {
-    background-color: rgb(147 11 11 / 0.12);
+  /* Hands scrollbars, native form controls and the iframe canvas the dark
+     palette too, so nothing paints a white strip on a dark page. */
+  html.dark {
+    color-scheme: dark;
   }
-  to {
-    background-color: transparent;
-  }
-}
-.audit-fresh {
-  animation: audit-flash 2.5s ease-out 1;
-}
-
-/* Ring pulse for the amber evidence card when sent over from Simulation */
-@keyframes card-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(217 119 6 / 0.55);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgb(217 119 6 / 0);
-  }
-}
-.card-pulse {
-  animation: card-pulse 1.1s ease-in-out 3;
 }
