@@ -168,3 +168,31 @@ describe("computeValidity — colors", () => {
     });
   });
 });
+
+describe("SECTION_LIST case-sensitivity regression", () => {
+  // The pattern once carried the `i` flag, which let `[A-Z]{0,2}` — meant for
+  // genuine uppercase suffixes like 65B — match lowercase instead. A digit-only
+  // section followed by "and" then parsed as "10 an", truncating the list and
+  // dropping every section after the first.
+  it("keeps sections after 'and' when the first has no letter suffix", () => {
+    const out = extractProvisions(
+      "Reliance was placed on Sections 10 and 14 of the Specific Relief Act, 1963."
+    );
+    expect(out).toContainEqual({ act: "Specific Relief Act 1963", section: "10" });
+    expect(out).toContainEqual({ act: "Specific Relief Act 1963", section: "14" });
+  });
+
+  it("recovers a distinctive section listed after a digit-only one", () => {
+    const out = extractProvisions("The court considered Sections 45 and 65B at length.");
+    expect(out).toContainEqual({ act: "Indian Evidence Act 1872", section: "65B" });
+  });
+
+  it("still extracts three-section lists", () => {
+    const out = extractProvisions(
+      "Sections 10, 14 and 16 of the Specific Relief Act, 1963 were argued."
+    );
+    for (const section of ["10", "14", "16"]) {
+      expect(out).toContainEqual({ act: "Specific Relief Act 1963", section });
+    }
+  });
+});

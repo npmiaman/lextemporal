@@ -18,6 +18,13 @@ import { getOverride } from "@/lib/override";
 import { computeValidity } from "@/lib/validity";
 import * as kanoon from "@/lib/kanoon";
 import { writeAudit } from "@/lib/audit";
+import {
+  checkCitation,
+  fenceSources,
+  summariseChecks,
+  type CitationCheck,
+  type DraftAudit,
+} from "@/lib/guardrails";
 
 export interface DraftedArgument {
   id: string;
@@ -83,21 +90,49 @@ interface DraftLlmOut {
   abstentions: string[];
 }
 
-/** Assemble display text with [dN¶M] tags from the schema-enforced sentences. */
+/**
+ * Assemble display text with [dN¶M] tags, and run the OUTPUT RAIL over every
+ * citation as it is built.
+ *
+ * A drafted sentence whose cited paragraph does not support it is the failure
+ * that ends a career, so each citation is checked against the actual paragraph
+ * text: the doc tag must resolve, the paragraph must exist, and the sentence
+ * must share content words with it. Failures are reported, never silently
+ * dropped — the previous behaviour discarded an unknown doc tag without a
+ * trace, which hides exactly the hallucination worth knowing about.
+ */
 function assemble(
   sentences: { text: string; doc: string; para: number }[],
-  validTags: Set<string>
-): { text: string; citations: { tag: string; para: number }[] } {
+  validTags: Set<string>,
+  paragraphsByTag: Map<string, string[]>
+): {
+  text: string;
+  citations: { tag: string; para: number }[];
+  audit: DraftAudit;
+} {
   const citations: { tag: string; para: number }[] = [];
+  const checks: CitationCheck[] = [];
+  let uncited = 0;
+
   const parts = sentences.map((s) => {
     const clean = s.text.replace(/\s*\[[^\]]*\]\s*/g, " ").replace(/\s+/g, " ").trim();
     if (validTags.has(s.doc) && s.para >= 1) {
+      const paras = paragraphsByTag.get(s.doc) ?? [];
+      const paragraph = s.para <= paras.length ? paras[s.para - 1] : null;
+      checks.push(checkCitation(clean, paragraph, s.doc, s.para, validTags));
       citations.push({ tag: s.doc, para: s.para });
       return `${clean} [${s.doc}¶${s.para}]`;
     }
+    if (s.doc) checks.push(checkCitation(clean, null, s.doc, s.para, validTags));
+    else uncited += 1;
     return clean;
   });
-  return { text: parts.join(" "), citations };
+
+  return {
+    text: parts.join(" "),
+    citations,
+    audit: summariseChecks(checks, uncited),
+  };
 }
 
 const PARA_CAP = 60;
@@ -115,7 +150,11 @@ function mappingsBlock(): string {
 
 export class DraftingError extends Error {}
 
-async function gatherSources(matter: Matter): Promise<{ sources: DraftSource[]; blocks: string }> {
+async function gatherSources(matter: Matter): Promise<{
+  sources: DraftSource[];
+  blocks: string;
+  paragraphsByTag: Map<string, string[]>;
+}> {
   const pins = listPins(matter.id);
   if (pins.length === 0) {
     throw new DraftingError(
@@ -124,6 +163,7 @@ async function gatherSources(matter: Matter): Promise<{ sources: DraftSource[]; 
   }
   const dates = matterDatesFor(matter);
   const sources: DraftSource[] = [];
+  const paragraphsByTag = new Map<string, string[]>();
   let blocks = "";
   let n = 0;
   for (const pin of pins.slice(0, 8)) {
@@ -131,6 +171,9 @@ async function gatherSources(matter: Matter): Promise<{ sources: DraftSource[]; 
     if (!doc) continue;
     n += 1;
     const tag = `d${n}`;
+    // Retained verbatim so the output rail checks citations against the same
+    // paragraph text the provenance sheet will later show the lawyer.
+    paragraphsByTag.set(tag, doc.paragraphs);
     const flag = computeValidity({ date: pin.date || doc.date, text: doc.text }, mappings, dates);
     sources.push({
       tag,
@@ -153,7 +196,7 @@ async function gatherSources(matter: Matter): Promise<{ sources: DraftSource[]; 
   if (sources.length === 0) {
     throw new DraftingError("None of the pinned judgments could be loaded from cache or network.");
   }
-  return { sources, blocks };
+  return { sources, blocks, paragraphsByTag };
 }
 
 function factsBlock(matter: Matter): string {
@@ -172,6 +215,11 @@ function factsBlock(matter: Matter): string {
 }
 
 function buildPrompt(matter: Matter, side: "ours" | "opposing", blocks: string): string {
+  // RETRIEVAL RAIL: judgment text comes from a 13M-document corpus nobody
+  // audited. Fence it with an unforgeable per-request nonce and state plainly
+  // that it is evidence, not instruction (OWASP LLM01, indirect injection).
+  const fenced = fenceSources(blocks);
+  blocks = fenced.block;
   const stance =
     side === "ours" ? "the PLAINTIFF" : "the DEFENDANT (opposing the plaintiff's claim)";
   return `You are drafting arguments for ${stance} in an Indian commercial suit.
@@ -232,14 +280,16 @@ export async function draftArguments(
     }
   }
 
-  const { sources, blocks } = await gatherSources(matter);
+  const { sources, blocks, paragraphsByTag } = await gatherSources(matter);
   const prompt = buildPrompt(matter, side, blocks);
   const { data } = await llmJson<DraftLlmOut>(prompt, DRAFT_SCHEMA);
 
   const validTags = new Set(sources.map((s) => s.tag));
   const prefix = side === "ours" ? "A" : "O";
+  const audits: { argId: string; audit: DraftAudit }[] = [];
   const args: DraftedArgument[] = data.arguments.slice(0, 4).map((a, i) => {
-    const { text, citations } = assemble(a.sentences, validTags);
+    const { text, citations, audit } = assemble(a.sentences, validTags, paragraphsByTag);
+    audits.push({ argId: `${prefix}${i + 1}`, audit });
     return {
       id: `${prefix}${i + 1}`,
       side,
@@ -277,9 +327,34 @@ export async function draftArguments(
     "INSERT OR REPLACE INTO draft_sources (matter_id, side, payload, updated_at) VALUES (?, ?, ?, ?)"
   ).run(matterId, side, JSON.stringify({ sources, abstentions: data.abstentions }), now);
 
+  // OUTPUT RAIL results, persisted per argument so the UI and the audit trail
+  // can show that every drafted sentence was checked against the paragraph it
+  // cites — and can name the ones that need a human read.
+  const stmt = db.prepare(
+    "INSERT OR REPLACE INTO citation_checks (matter_id, side, arg_id, payload, checked_at) VALUES (?, ?, ?, ?, ?)"
+  );
+  for (const { argId, audit } of audits) {
+    stmt.run(matterId, side, argId, JSON.stringify(audit), now);
+  }
+  const totals = audits.reduce(
+    (acc, { audit }) => ({
+      checked: acc.checked + audit.checks.length,
+      unresolved: acc.unresolved + audit.unresolved,
+      outOfRange: acc.outOfRange + audit.outOfRange,
+      weak: acc.weak + audit.weak,
+    }),
+    { checked: 0, unresolved: 0, outOfRange: 0, weak: 0 }
+  );
+
   writeAudit(
     "system",
     `Draft arguments generated (${args.map((a) => a.id).join(", ")}) from ${sources.length} pinned authorities · ${data.abstentions.length} abstention(s)`,
+    `${matterRef(matter)} (${side})`
+  );
+  writeAudit(
+    "system",
+    `Citation rail — ${totals.checked} citation(s) verified against source paragraphs · ` +
+      `${totals.unresolved} unresolved · ${totals.outOfRange} out-of-range · ${totals.weak} weakly supported`,
     `${matterRef(matter)} (${side})`
   );
 
@@ -299,7 +374,7 @@ export async function redraftArgument(matterId: number, argId: string): Promise<
   if (!row) throw new DraftingError(`Unknown argument ${argId}`);
   const prev = JSON.parse(row.payload) as { text: string; mapping_deps: string[] };
 
-  const { sources, blocks } = await gatherSources(matter);
+  const { sources, blocks, paragraphsByTag } = await gatherSources(matter);
   const prompt = `${buildPrompt(matter, row.side, blocks)}
 
 RE-VERIFICATION TASK: The argument below was drafted earlier. One or more statutory mappings it depends on (${prev.mapping_deps.join(", ")}) have since been corrected by the supervising lawyer (see LAWYER OVERRIDE notes in the mappings above). Re-draft THIS ONE argument so it is consistent with the corrected mappings, same citation rules. Return exactly one argument.
@@ -314,7 +389,15 @@ ${prev.text}`;
   if (!a) throw new DraftingError("Re-draft returned no argument");
 
   const validTags = new Set(sources.map((s) => s.tag));
-  const { text, citations } = assemble(a.sentences, validTags);
+  const { text, citations, audit } = assemble(a.sentences, validTags, paragraphsByTag);
+  // A re-draft is exactly where a citation can drift, so it gets the same
+  // output-rail treatment as the original draft rather than being trusted
+  // because a human asked for it.
+  getDb()
+    .prepare(
+      "INSERT OR REPLACE INTO citation_checks (matter_id, side, arg_id, payload, checked_at) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(matterId, row.side, argId, JSON.stringify(audit), nowIso());
   const updated: DraftedArgument = {
     id: argId,
     side: row.side,
